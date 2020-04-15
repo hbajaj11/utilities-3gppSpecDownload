@@ -15,7 +15,7 @@ zip files.
 import requests
 import threading
 import zipfile
-import os
+import os, sys,getopt
 
 class Spec3GPPDownload:
     """Class used to bulk download 3GPP specs in DOC or PDF format.
@@ -31,21 +31,65 @@ class Spec3GPPDownload:
     user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
     d = {10:'a',11:'b',12:'c',13:'d',14:'e',15:'f',16:'g',17:'h',18:'i',19:'j',20:'k',21:'l',22:'m',}
 
-    def __init__(self,downloadPath="./download/"):
+    def __init__(self):
         """The constructor."""
         #These are read/write variables so should be instance specific
-        try:
-            # Create target Directory
-            os.mkdir(downloadPath)
-            print("Directory " , downloadPath ,  " Created ") 
-        except FileExistsError:
-            print("Directory " , downloadPath ,  " already exists")
-        self.fileFolder = downloadPath
+        self.fileFolder = ""
+        self.doctype = "doc"
+        self.speclst = []
         self.cntLock = threading.Lock()
         self.fileDone = 0
         self.fileNotFound = 0
         self.totalFile = 0
    
+    def checkDownloadDir(self):
+        if self.fileFolder == "":
+            self.fileFolder = "./download/"
+            try:
+                # Create target Directory
+                os.makedirs(self.fileFolder)
+                print("Default download Directory " , self.fileFolder ,  " Created ") 
+            except FileExistsError:
+                print("Directory " , self.fileFolder ,  " already exists")
+    def usage(self):
+        print('python specDownload.py -s "22.278.15.4.0,22.280.15.3.0,22.179.15.1.0" [-d downloadpath] [-t "doc"/"pdf"]')            
+    
+    def main(self,args):
+        specProvided = False
+        try:
+            opts, args = getopt.getopt(args, "hd:t:s:", ["help", "downloadpath=","doctype=","speclst="])
+        except getopt.GetoptError as err:
+            # print help information and exit:
+            print (str(err))  # will print something like "option -a not recognized"
+            usage()
+            sys.exit(2)
+        output = None
+        verbose = False
+        for o, a in opts:
+            if o in ("-d","--downloadpath"):
+                self.fileFolder = a 
+                try:
+                    # Create target Directory
+                    os.makedirs(a)
+                    print("Directory " , a ,  " Created ") 
+                except FileExistsError:
+                    print("Directory " , a ,  " already" )
+            elif o in ("-h", "--help"):
+                self.usage()
+                sys.exit()
+            elif o in ("-t", "--doctype"):
+                self.doctype = a
+            elif o in ("-s", "--speclst"):
+                self.speclst = a
+                specProvided = True   
+            else:
+                assert False, "unhandled option"
+
+        if specProvided == False:
+            self.usage()
+            sys.exit()
+        self.checkDownloadDir()        
+
     def downloadFile3GPP(self,specSeries,specNum,major,tech,editorial):
         """Method to download DOC specs from 3GPP site."""
         #http://www.3gpp.org/ftp//Specs/archive/22_series/22.179/22179-g50.zip
@@ -118,18 +162,21 @@ class Spec3GPPDownload:
         else:
             return self.d[major]     
     
-    def downloadSpecs(self,specLst,downloadType):
+    def downloadSpecs(self):
         """Method called from main which handles parameters and accordingly
         call function specific to download doc or pdf format specs.Also
         it handles multithreading aspects of downloading multiple specs
         in parallel to reduce time to download"""
         
         thr = []
-        self.totalFile = len(specLst)
-        for lst in specLst:
-            if downloadType == "doc" :
+        slst = list(self.speclst.split(","))
+        self.totalFile = len(slst)
+        for tmplst in slst:
+            lst = list(map(int,tmplst.split(".")))
+            #print(lst)
+            if self.doctype == "doc" :
                 thr.append(threading.Thread(target=self.downloadFile3GPP, args=(lst[0],lst[1],lst[2],lst[3],lst[4]))  )        
-            elif downloadType == "pdf" :
+            elif self.doctype == "pdf" :
                 thr.append(threading.Thread(target=self.downloadFileEtsi, args=(lst[0],lst[1],lst[2],lst[3],lst[4]))  )        
             else:
                 print("Invalid download type ({}) specified".format(downloadType))
@@ -147,6 +194,7 @@ if __name__ == '__main__':
             [22,280 ,15,3,0],
             [22,179 ,15,1,0]]
     
-    downloadSpec = Spec3GPPDownload("./download/1/")
-    downloadSpec.downloadSpecs(specLst,"pdf")
+    downloadSpec = Spec3GPPDownload()
+    downloadSpec.main(sys.argv[1:])
+    downloadSpec.downloadSpecs()
 
