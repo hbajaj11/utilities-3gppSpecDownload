@@ -53,8 +53,19 @@ class Spec3GPPDownload:
             except FileExistsError:
                 print("Directory " , self.fileFolder ,  " already exists")
     def usage(self):
-        print('python specDownload.py -s "22.278.15.4.0,22.280.15.3.0,22.179.15.1.0" -f <filename> [-d downloadpath] [-t "doc"/"pdf"]')            
+        print('python specDownload.py -s "22.278v15.4.0,22.280v15.3.0,22.179v15.1.0" -f <filename> [-d downloadpath] [-t "doc"/"pdf"]')            
     
+    def validateSpecLst(self):
+        slst = list(self.speclst.split(","))
+        for tmplst in slst:
+            tmplst = tmplst.replace('v','.')
+            try:
+                list(map(int,tmplst.split(".")))
+            except:
+                return False
+            
+        return True
+        
     def handleFileInput(self):
         if self.filename == "":
             print("Invalid file name")
@@ -66,6 +77,11 @@ class Spec3GPPDownload:
         for line in lines:
             lst.append( line.replace('v','.'))
         self.speclst = specStr.join(lst)    
+        ret = self.validateSpecLst()
+        if ret == False:
+            print("Invalid spec list in file")
+            sys.exit(2)
+            
     def main(self,args):
         specProvided = False
         filePresent = False
@@ -91,10 +107,17 @@ class Spec3GPPDownload:
                 self.usage()
                 sys.exit()
             elif o in ("-t", "--doctype"):
+                if (a != "doc") and (a != "pdf"):
+                    print("Invalid doctype. Pls use doc or pdf")
+                    sys.exit(2)
                 self.doctype = a
             elif o in ("-s", "--speclst"):
                 self.speclst = a
-                specProvided = True   
+                specProvided = True
+                ret = self.validateSpecLst()
+                if ret == False:
+                    print("Invalid format for spec list")
+                    sys.exit(2)
             elif o in ("-f","--file"):
                 self.filename = a
                 filePresent = True
@@ -194,6 +217,7 @@ class Spec3GPPDownload:
         slst = list(self.speclst.split(","))
         self.totalFile = len(slst)
         for tmplst in slst:
+            tmplst = tmplst.replace('v','.')
             lst = list(map(int,tmplst.split(".")))
             #print(lst)
             if self.doctype == "doc" :
@@ -201,7 +225,7 @@ class Spec3GPPDownload:
             elif self.doctype == "pdf" :
                 thr.append(threading.Thread(target=self.downloadFileEtsi, args=(lst[0],lst[1],lst[2],lst[3],lst[4]))  )        
             else:
-                print("Invalid download type ({}) specified".format(downloadType))
+                print("Invalid download type ({}) specified".format(self.doctype))
                 return
         for j in thr:
             j.start()
@@ -211,11 +235,6 @@ class Spec3GPPDownload:
     
 
 if __name__ == '__main__':
-
-    specLst = [[22,278 ,15,4,0],
-            [22,280 ,15,3,0],
-            [22,179 ,15,1,0]]
-    
     downloadSpec = Spec3GPPDownload()
     downloadSpec.main(sys.argv[1:])
     downloadSpec.downloadSpecs()
