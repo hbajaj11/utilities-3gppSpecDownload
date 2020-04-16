@@ -36,6 +36,7 @@ class Spec3GPPDownload:
         #These are read/write variables so should be instance specific
         self.fileFolder = ""
         self.doctype = "doc"
+        self.filename = ""
         self.speclst = []
         self.cntLock = threading.Lock()
         self.fileDone = 0
@@ -52,19 +53,31 @@ class Spec3GPPDownload:
             except FileExistsError:
                 print("Directory " , self.fileFolder ,  " already exists")
     def usage(self):
-        print('python specDownload.py -s "22.278.15.4.0,22.280.15.3.0,22.179.15.1.0" [-d downloadpath] [-t "doc"/"pdf"]')            
+        print('python specDownload.py -s "22.278.15.4.0,22.280.15.3.0,22.179.15.1.0" -f <filename> [-d downloadpath] [-t "doc"/"pdf"]')            
     
+    def handleFileInput(self):
+        if self.filename == "":
+            print("Invalid file name")
+            sys.exit()
+        f = open(self.filename,"r")
+        lines = f.readlines()
+        specStr = ","
+        lst = []
+        for line in lines:
+            lst.append( line.replace('v','.'))
+        self.speclst = specStr.join(lst)    
     def main(self,args):
         specProvided = False
+        filePresent = False
         try:
-            opts, args = getopt.getopt(args, "hd:t:s:", ["help", "downloadpath=","doctype=","speclst="])
+            opts, args = getopt.getopt(args, "hd:t:s:f:", ["help", "downloadpath=","doctype=","speclst=","file="])
         except getopt.GetoptError as err:
             # print help information and exit:
             print (str(err))  # will print something like "option -a not recognized"
-            usage()
+            self.usage()
             sys.exit(2)
-        output = None
-        verbose = False
+        #output = None
+        #verbose = False
         for o, a in opts:
             if o in ("-d","--downloadpath"):
                 self.fileFolder = a 
@@ -82,13 +95,22 @@ class Spec3GPPDownload:
             elif o in ("-s", "--speclst"):
                 self.speclst = a
                 specProvided = True   
+            elif o in ("-f","--file"):
+                self.filename = a
+                filePresent = True
             else:
                 assert False, "unhandled option"
 
-        if specProvided == False:
+        if (specProvided == False) & (filePresent == False):
             self.usage()
             sys.exit()
-        self.checkDownloadDir()        
+        if (specProvided == True) & (filePresent == True):
+            print("Either provide -s or -f and not both")
+            self.usage()
+            sys.exit()    
+        self.checkDownloadDir()
+        if(filePresent == True):
+            self.handleFileInput()
 
     def downloadFile3GPP(self,specSeries,specNum,major,tech,editorial):
         """Method to download DOC specs from 3GPP site."""
